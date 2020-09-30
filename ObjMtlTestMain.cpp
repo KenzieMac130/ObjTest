@@ -4,6 +4,7 @@
 #define SHOW_PBR true
 #define SHOW_LEGACY true
 #define SHOW_TEXTURE_OPTIONS true
+#define SHOW_SSS_EXT true
 
 #include <iostream>
 
@@ -93,10 +94,45 @@ void logTexture(const char* name, std::string path, tinyobj::texture_option_t& o
 	logStdString("\tColor Space", options.colorspace);
 }
 
+void logSubsurfaceExtension(tinyobj::material_t& mat, bool logOptions)
+{
+	tinyobj::real_t subsurface_factor = 0.0f;
+	tinyobj::real_t subsurface_radius[3] = { 0.0f, 0.0f, 0.0f };
+	std::string subsurface_factor_texname = "";
+	tinyobj::texture_option_t subsurface_factor_texopt = tinyobj::texture_option_t();
+
+	if (mat.unknown_parameter.count("Sr"))
+	{
+		auto param_raw = mat.unknown_parameter.find("Sr");
+		tinyobj::real_t r, g, b;
+		const char* token = const_cast<char*>(param_raw->second.c_str());
+		tinyobj::parseReal3(&r, &g, &b, &token);
+		subsurface_radius[0] = r;
+		subsurface_radius[1] = g;
+		subsurface_radius[2] = b;
+	}
+	if (mat.unknown_parameter.count("Sf"))
+	{
+		auto param_raw = mat.unknown_parameter.find("Sf");
+		const char* token = const_cast<char*>(param_raw->second.c_str());
+		subsurface_factor = tinyobj::parseReal(&token);
+	}
+	if (mat.unknown_parameter.count("map_Sf"))
+	{
+		auto param_raw = mat.unknown_parameter.find("map_Sf");
+		tinyobj::ParseTextureNameAndOption(&(subsurface_factor_texname), &(subsurface_factor_texopt), param_raw->second.c_str());
+	}
+
+	logReal("Subsurface Factor", subsurface_factor);
+	logVector3("Subsurface Radius", subsurface_radius);
+	logTexture("Subsurface Factor Map", subsurface_factor_texname, subsurface_factor_texopt, logOptions);
+}
+
 #define MAT_LEGACY(_contents) if(enableLegacy){_contents;}
 #define MAT_PBR(_contents) if(enablePBR){_contents;}
+#define MAT_SSS(_contents) if(enableSSS){_contents;}
 
-void logMaterial(tinyobj::material_t& mat, bool logOptions, bool enableLegacy, bool enablePBR)
+void logMaterial(tinyobj::material_t& mat, bool logOptions, bool enableLegacy, bool enablePBR, bool enableSSS)
 {
 	logStdString("Name", mat.name);
 	DEBUG_NEWLINE();
@@ -128,7 +164,7 @@ void logMaterial(tinyobj::material_t& mat, bool logOptions, bool enableLegacy, b
 	MAT_LEGACY(logTexture("Ambient Map", mat.ambient_texname, mat.ambient_texopt, logOptions));
 	logTexture("Color Map", mat.diffuse_texname, mat.diffuse_texopt, logOptions);
 	logTexture("Specular Map", mat.specular_texname, mat.specular_texopt, logOptions);
-	MAT_LEGACY(logTexture("Specular Exponent Map", mat.specular_texname, mat.specular_texopt, logOptions));
+	MAT_LEGACY(logTexture("Specular Exponent Map", mat.specular_highlight_texname, mat.specular_highlight_texopt, logOptions));
 	logTexture("Bump Map", mat.bump_texname, mat.bump_texopt, logOptions);
 	logTexture("Displacement Map", mat.displacement_texname, mat.displacement_texopt, logOptions);
 	logTexture("Opacity Map", mat.alpha_texname, mat.alpha_texopt, logOptions);
@@ -140,6 +176,9 @@ void logMaterial(tinyobj::material_t& mat, bool logOptions, bool enableLegacy, b
 	MAT_PBR(logTexture("Metallic Map", mat.metallic_texname, mat.metallic_texopt, logOptions));
 	MAT_PBR(logTexture("Sheen Map", mat.sheen_texname, mat.sheen_texopt, logOptions));
 	MAT_PBR(logTexture("Normal Map", mat.normal_texname, mat.normal_texopt, logOptions));
+	DEBUG_NEWLINE();
+
+	MAT_SSS(logSubsurfaceExtension(mat, logOptions));
 }
 
 /* -------------------------------------- Main -------------------------------------- */
@@ -188,7 +227,7 @@ int main(int argc, char* argv[])
 	DEBUG_SEPERATOR();
 	for (size_t i = 0; i < materials.size(); i++)
 	{
-		logMaterial(materials[i], SHOW_TEXTURE_OPTIONS, SHOW_LEGACY, SHOW_PBR);
+		logMaterial(materials[i], SHOW_TEXTURE_OPTIONS, SHOW_LEGACY, SHOW_PBR, SHOW_SSS_EXT);
 		DEBUG_SEPERATOR();
 	}
 
